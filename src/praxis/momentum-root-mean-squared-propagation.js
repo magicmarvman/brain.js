@@ -68,16 +68,16 @@ class MomentumRootMeanSquaredPropagation extends Base {
     };
   }
 
-  constructor(layer, settings = {}) {
-    super(layer, settings);
-    this.momentums = zeros2D(layer.width, layer.height);
+  constructor(layerTemplate, settings = {}) {
+    super(layerTemplate, settings);
+    this.momentums = zeros2D(layerTemplate.width, layerTemplate.height);
     this.setupKernels();
   }
 
-  run(layer, previousLayer, nextLayer, learningRate) {
-    const output = this.kernel(layer.weights, layer.deltas, this.momentums);
-    this.momentums = output.momentums;
-    return output.result;
+  run(layer, learningRate) {
+    const { momentums, result } = this.kernel(layer.weights, layer.deltas, this.momentums);
+    this.momentums = momentums;
+    return result;
   }
 
   setupKernels() {

@@ -364,8 +364,6 @@ class FeedForward {
   adjustWeights() {
     for (let i = 0; i < this.layers.length; i++) {
       this.layers[i].learn(
-        this.layers[i - 1],
-        this.layers[i + 1],
         this.trainOpts.learningRate
       );
     }

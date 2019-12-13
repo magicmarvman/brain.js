@@ -25,8 +25,8 @@ class ArthurDeviationWeights extends Base {
     };
   }
 
-  constructor(layer, settings) {
-    super(layer, settings);
+  constructor(layerTemplate, settings) {
+    super(layerTemplate, settings);
     this.weightsLayer = null;
     this.incomingLayer = null;
     this.deltaLayer = null;
@@ -43,11 +43,11 @@ class ArthurDeviationWeights extends Base {
       }
     }
 
-    this.changes = zeros2D(layer.width, layer.height);
+    this.changes = zeros2D(layerTemplate.width, layerTemplate.height);
     this.setupKernels();
   }
 
-  run(layer, previousLayer, nextLayer, learningRate) {
+  run(layer, learningRate) {
     const output = this.kernel(
       this.changes,
       this.weightsLayer.weights,

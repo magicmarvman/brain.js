@@ -30,8 +30,8 @@ class RecurrentZeros extends Internal {
     // throw new Error(`${this.constructor.name}-compare is not yet implemented`)
   }
 
-  learn(previousLayer, nextLayer, learningRate) {
-    this.weights = this.praxis.run(this, previousLayer, nextLayer, learningRate);
+  learn(learningRate) {
+    this.weights = this.praxis.run(this, learningRate);
     this.deltas = zeros2D(this.width, this.height);
   }
 

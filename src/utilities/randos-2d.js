@@ -6,4 +6,4 @@ module.exports = function randos2D(width, height) {
     result[y] = randos(width);
   }
   return result;
-}
+};

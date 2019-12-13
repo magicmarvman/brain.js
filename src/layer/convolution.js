@@ -4,9 +4,29 @@ const { Filter } = require('./types');
 const randos = require('../utilities/randos');
 const randos3D = require('../utilities/randos-3d');
 const zeros3D = require('../utilities/zeros-3d');
+const randos2D = require('../utilities/randos-2d');
+const zeros2D = require('../utilities/zeros-2d');
 const values = require('../utilities/values');
 
-function predict(inputs, filters, biases) {
+function predict2D(inputs, filters, biases) {
+  const startFilterX = this.constants.paddingX - (this.thread.x * this.constants.strideX);
+  const startInputX = (this.thread.x * this.constants.strideX) - this.constants.paddingX;
+  const endFilterX = Math.min(this.constants.filterWidth, startFilterX + this.constants.inputWidth);
+
+  const startFilterY = this.constants.paddingY - (this.thread.y * this.constants.strideY);
+  const startInputY = (this.thread.y * this.constants.strideY) - this.constants.paddingY;
+  const endFilterY = Math.min(this.constants.filterHeight, startFilterY + this.constants.inputHeight);
+
+  let sum = 0;
+  for (let filterY = Math.max(0, startFilterY), inputY = Math.max(0, startInputY); filterY < endFilterY; filterY++, inputY++) {
+    for (let filterX = Math.max(0, startFilterX), inputX = Math.max(0, startInputX); filterX < endFilterX; filterX++, inputX++) {
+      sum += filters[filterY][filterX] * inputs[inputY][inputX];
+    }
+  }
+  return sum + biases[this.thread.z];
+}
+
+function predict3D(inputs, filters, biases) {
   const startFilterX = this.constants.paddingX - (this.thread.x * this.constants.strideX);
   const startInputX = (this.thread.x * this.constants.strideX) - this.constants.paddingX;
   const endFilterX = Math.min(this.constants.filterWidth, startFilterX + this.constants.inputWidth);
@@ -26,7 +46,7 @@ function predict(inputs, filters, biases) {
   return sum + biases[this.thread.z];
 }
 
-function compareFilterDeltas(filterDeltas, inputs, deltas) {
+function compareFilterDeltas(filterDeltas, inputs, deltas, deltaZ) {
   const startDeltaX = Math.max(0, Math.ceil((this.constants.paddingX - this.thread.x) / this.constants.strideX));
   const startInputX = startDeltaX * this.constants.strideX + this.thread.x - this.constants.paddingX;
   const endDeltaX = Math.min(this.constants.deltaWidth, Math.floor(((this.constants.inputWidth - 1) - this.thread.x + this.constants.paddingX) / this.constants.strideX) + 1);
@@ -38,13 +58,13 @@ function compareFilterDeltas(filterDeltas, inputs, deltas) {
   let sum = filterDeltas[this.thread.z][this.thread.y][this.thread.x];
   for (let deltaY = startDeltaY, inputY = startInputY; deltaY < endDeltaY; deltaY++, inputY += this.constants.strideY) {
     for (let deltaX = startDeltaX, inputX = startInputX; deltaX < endDeltaX; deltaX++, inputX += this.constants.strideX) {
-      sum += inputs[this.thread.z][inputY][inputX] * deltas[this.constants.deltaZ][deltaY][deltaX];
+      sum += inputs[this.thread.z][inputY][inputX] * deltas[deltaZ][deltaY][deltaX];
     }
   }
   return sum;
 }
 
-function compareInputDeltas(inputDeltas, filters, deltas) {
+function compareInputDeltas(inputDeltas, filters, deltas, deltaZ) {
   const x = this.thread.x + this.constants.paddingX;
   const startDeltaX = x < this.constants.filterWidth ? 0 : Math.floor((x - this.constants.filterWidth + this.constants.strideX) / this.constants.strideX);
   const startFilterX = x - startDeltaX * this.constants.strideX;
@@ -60,7 +80,7 @@ function compareInputDeltas(inputDeltas, filters, deltas) {
   for (let filterY = startFilterY; deltaY < endDeltaY; filterY -= this.constants.strideY, deltaY++) {
     let deltaX = startDeltaX;
     for (let filterX = startFilterX; deltaX < endDeltaX; filterX -= this.constants.strideX, deltaX++) {
-      sum += filters[this.thread.z][filterY][filterX] * deltas[this.constants.deltaZ][deltaY][deltaX];
+      sum += filters[this.thread.z][filterY][filterX] * deltas[deltaZ][deltaY][deltaX];
     }
   }
   return sum;
@@ -83,8 +103,8 @@ class Convolution extends Filter {
       padding: 0,
       bias: 0.1,
       filterCount: 1,
-      filterWidth: 0,
-      filterHeight: 0,
+      filterWidth: 1,
+      filterHeight: 1,
     };
   }
 
@@ -121,17 +141,47 @@ class Convolution extends Filter {
     this.biases = values(this.depth, this.bias);
     this.biasDeltas = randos(this.depth);
 
-    this.filters = randos3D(this.filterWidth, this.filterHeight, this.filterCount);
-    this.filterDeltas = zeros3D(this.filterWidth, this.filterHeight, this.filterCount);
-
+    this.filters = null;
+    this.filterDeltas = null;
+    this.filterPraxis = null;
     this.learnFilters = null;
     this.learnInputs = null;
     this.inputLayer = inputLayer;
     this.validate();
+    this.setupPraxis(settings);
+    this.setupFilters();
+    this.setupFilterPraxis(settings);
+  }
+
+  setupFilters() {
+    this.filters = [];
+    this.filterDeltas = [];
+    if (this.inputLayer.depth) {
+      for (let i = 0; i < this.filterCount; i++) {
+        this.filters.push(randos3D(this.filterWidth, this.filterHeight, this.inputLayer.depth));
+        this.filterDeltas.push(zeros3D(this.filterWidth, this.filterHeight, this.inputLayer.depth));
+      }
+    } else {
+      for (let i = 0; i < this.filterCount; i++) {
+        this.filters.push(randos2D(this.filterWidth, this.filterHeight));
+        this.filterDeltas.push(zeros2D(this.filterWidth, this.filterHeight));
+      }
+    }
+  }
+
+  setupFilterPraxis(settings) {
+    if (!settings) return;
+    if (settings.hasOwnProperty('praxis')) {
+      if (typeof settings.praxis === 'function') {
+        this.praxis = settings.praxis({ weights: this.filters[0], deltas: this.filterDeltas[0] }, settings.praxisOpts);
+      } else {
+        this.praxis = settings.praxis;
+      }
+    }
   }
 
   setupKernels() {
-    this.predictKernel = makeKernel(predict, {
+    this.predictKernel = makeKernel(this.inputLayer.depth ? predict3D : predict2D, {
       constants: {
         inputWidth: this.inputLayer.width,
         inputHeight: this.inputLayer.height,
@@ -161,7 +211,9 @@ class Convolution extends Filter {
         filterWidth: this.filterWidth,
         filterHeight: this.filterHeight,
       },
-      output: [this.width, this.height, this.depth],
+      output: this.inputLayer.depth
+        ? [this.filterWidth, this.filterHeight, this.inputLayer.depth]
+        : [this.filterWidth, this.filterHeight],
     });
 
     this.compareInputDeltasKernel = makeKernel(compareInputDeltas, {
@@ -193,19 +245,31 @@ class Convolution extends Filter {
   }
 
   compare() {
-    this.filterDeltas = this.compareFilterDeltasKernel(
-      this.filterDeltas,
-      this.inputLayer.weights,
-      this.deltas
-    );
+    for (let i = 0; i < this.filterDeltas.length; i++) {
+      const filterDeltasClone = this.filterDeltas[i].clone();
+      this.filterDeltas[i] = this.compareFilterDeltasKernel(
+        filterDeltasClone,
+        this.inputLayer.weights,
+        this.deltas,
+        i
+      );
+      filterDeltasClone.delete();
+    }
     this.biasDeltas = this.compareBiasesKernel(this.biasDeltas, this.deltas);
     this.deltas = this.compareInputDeltasKernel(this.filters, this.inputLayer.deltas);
     this.inputLayer.deltas = this.deltas;
   }
 
-  learn(previousLayer, nextLayer, learningRate) {
-    // TODO: handle filters
-    this.weights = this.praxis.run(this, previousLayer, nextLayer, learningRate);
+  learn(learningRate) {
+    // TODO: handle filters and biases
+    this.weights = this.praxis.run(this, learningRate);
+    const virtualLayer = {};
+    for (let i = 0; i < this.filterCount.length; i++) {
+      virtualLayer.weights = this.filters[i].copy();
+      virtualLayer.deltas = this.filterDeltas[i];
+      this.filters[i] = this.filterPraxis.run(virtualLayer, learningRate);
+      virtualLayer.weights.delete();
+    }
     this.deltas = zeros3D(this.width, this.height, this.depth);
   }
 }
@@ -217,7 +281,8 @@ function convolution(settings, inputLayer) {
 module.exports = {
   Convolution,
   convolution,
-  predict,
+  predict2D,
+  predict3D,
   compareFilterDeltas,
   compareInputDeltas,
   compareBiases

@@ -24,7 +24,7 @@ class Target extends Filter {
     this.validate();
     if (this.depth > 0) {
       throw new Error('Target layer not implemented for depth');
-    } else if (this.height > 1) {
+    } else if (this.height !== null) {
       this.weights = zeros2D(this.width, this.height);
       this.deltas = zeros2D(this.width, this.height);
       this.errors = zeros2D(this.width, this.height);

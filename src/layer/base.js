@@ -1,5 +1,6 @@
 const zeros2D = require('../utilities/zeros-2d');
 const zeros3D = require('../utilities/zeros-3d');
+const { watchDeltas, watchWeights } = require('./debug/strict-watch');
 
 class Base {
   static get defaults() {
@@ -47,38 +48,55 @@ class Base {
     }
   }
 
-  /*
-  get weights() {
-    return this._weights;
-  }
-
-  set weights(value) {
-    if (value) {
-      if (value[0].length !== this.width) {
-        throw new Error(`${this.constructor.name}.weights being set with improper value width`);
-      }
-      if (value.length !== this.height) {
-        throw new Error(`${this.constructor.name}.weights being set with improper value height`);
-      }
-    }
-    this._weights = value;
-  }
-
-  get deltas() {
-    return this._deltas;
-  }
-
-  set deltas(value) {
-    if (value) {
-      if (value[0].length !== this.width) {
-        throw new Error(`${this.constructor.name}.deltas being set with improper value width`);
-      }
-      if (value.length !== this.height) {
-        throw new Error(`${this.constructor.name}.deltas being set with improper value height`);
-      }
-    }
-    this._deltas = value;
-  } */
+  // get weights() {
+  //   return this._weights;
+  // }
+  //
+  // set weights(value) {
+  //   if (value) {
+  //     if (value.texture) {
+  //       if (value.output[0] !== this.width) {
+  //         throw new Error(`${this.constructor.name}.weights being set with improper value width`);
+  //       }
+  //       if (value.output[1] !== this.height) {
+  //         throw new Error(`${this.constructor.name}.weights being set with improper value height`);
+  //       }
+  //     } else {
+  //       if (value[0].length !== this.width) {
+  //         throw new Error(`${this.constructor.name}.weights being set with improper value width`);
+  //       }
+  //       if (value.length !== this.height) {
+  //         throw new Error(`${this.constructor.name}.weights being set with improper value height`);
+  //       }
+  //     }
+  //   }
+  //   this._weights = value;
+  // }
+  //
+  // get deltas() {
+  //   return this._deltas;
+  // }
+  //
+  // set deltas(value) {
+  //   if (value) {
+  //     if (value.texture) {
+  //       if (value.output[0] !== this.width) {
+  //         throw new Error(`${this.constructor.name}.weights being set with improper value width`);
+  //       }
+  //       if (value.output[1] !== this.height) {
+  //         throw new Error(`${this.constructor.name}.weights being set with improper value height`);
+  //       }
+  //     } else {
+  //       if (value[0].length !== this.width) {
+  //         throw new Error(`${this.constructor.name}.deltas being set with improper value width`);
+  //       }
+  //       if (value.length !== this.height) {
+  //         throw new Error(`${this.constructor.name}.deltas being set with improper value height`);
+  //       }
+  //     }
+  //   }
+  //   this._deltas = value;
+  // }
 
   validate() {
     if (Number.isNaN(this.height)) {
@@ -132,11 +150,10 @@ class Base {
     // throw new Error(`${this.constructor.name}-compare is not yet implemented`)
   }
 
-  learn(previousLayer, nextLayer, learningRate) {
-    this.weights = this.praxis.run(this, previousLayer, nextLayer, learningRate);
-
+  learn(learningRate) {
+    this.weights = this.praxis.run(this, learningRate);
     // TODO: put into a kernel
-    if (this.depth > 0) {
+    if (this.depth !== null) {
       this.deltas = zeros3D(this.width, this.height, this.depth);
     } else {
       this.deltas = zeros2D(this.width, this.height);
@@ -158,12 +175,20 @@ class Base {
       const key = keys[i];
       if (key === 'deltas') continue;
       if (key === 'name' && this[key] === null) continue;
-      jsonLayer[key] = this[key];
+      if (this[key] && this[key].toArray) {
+        jsonLayer[key] = this[key].toArray();
+      } else {
+        jsonLayer[key] = this[key];
+      }
     }
     jsonLayer.type = name;
     return jsonLayer;
   }
 }
+
+// decorators
+// watchWeights(Base);
+// watchDeltas(Base);
 
 module.exports = {
   Base

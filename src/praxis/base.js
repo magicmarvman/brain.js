@@ -3,17 +3,23 @@ class Base {
     return {};
   }
 
-  constructor(layer, settings = {}) {
-    this.layer = layer;
-    this.width = layer.width || null;
-    this.height = layer.height || null;
-    this.depth = layer.depth || null;
+  constructor(layerTemplate, settings = {}) {
+    this.layer = layerTemplate;
+    this.width = layerTemplate.width || null;
+    this.height = layerTemplate.height || null;
+    this.depth = layerTemplate.depth || null;
     Object.assign(this, this.constructor.defaults, settings);
   }
 
   setupKernels() {}
 
-  run() {}
+  /**
+   *
+   * @param {Base} layer
+   * @param {Number} learningRate
+   * @abstract
+   */
+  run(layer, learningRate) {}
 }
 
 module.exports = {

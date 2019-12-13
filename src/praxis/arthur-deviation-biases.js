@@ -12,15 +12,14 @@ class ArthurDeviationBiases extends Base {
     };
   }
 
-  constructor(layer, settings) {
-    super(layer, settings);
+  constructor(layerTemplate, settings) {
+    super(layerTemplate, settings);
     this.kernel = null;
     this.setupKernels();
   }
 
-  run(layer, previousLayer, nextLayer, learningRate) {
-    const output = this.kernel(layer.weights, layer.deltas);
-    return output;
+  run(layer, learningRate) {
+    return this.kernel(layer.weights, layer.deltas);
   }
 
   setupKernels() {
