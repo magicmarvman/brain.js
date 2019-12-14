@@ -24,7 +24,7 @@ function clipByValue(value, max, min) {
 function update(
   weights,
   deltas,
-  previousMomentums
+  previousMomenta
 ) {
   const delta = deltas[this.thread.y][this.thread.x];
   const clippedDelta = clipByValue(
@@ -33,7 +33,7 @@ function update(
     -this.constants.clipValue
   );
   const weight = weights[this.thread.y][this.thread.x];
-  const previousMomentum = previousMomentums[this.thread.y][this.thread.x];
+  const previousMomentum = previousMomenta[this.thread.y][this.thread.x];
   const momentum = getMomentum(
     delta,
     this.constants.decayRate,
@@ -70,13 +70,20 @@ class MomentumRootMeanSquaredPropagation extends Base {
 
   constructor(layerTemplate, settings = {}) {
     super(layerTemplate, settings);
-    this.momentums = zeros2D(layerTemplate.width, layerTemplate.height);
+    this.momenta = zeros2D(layerTemplate.width, layerTemplate.height);
     this.setupKernels();
   }
 
+  deleteMomenta() {
+    if (this.momenta && this.momenta.delete) {
+      this.momenta.delete();
+    }
+  }
+
   run(layer, learningRate) {
-    const { momentums, result } = this.kernel(layer.weights, layer.deltas, this.momentums);
-    this.momentums = momentums;
+    const { momenta, result } = this.kernel(layer.weights, layer.deltas, this.momenta);
+    this.deleteMomenta();
+    this.momenta = momenta;
     return result;
   }
 
@@ -92,7 +99,7 @@ class MomentumRootMeanSquaredPropagation extends Base {
       },
       functions: [clipByValue],
       map: {
-        momentums: getMomentum,
+        momenta: getMomentum,
       },
     });
   }
